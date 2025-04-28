@@ -1,112 +1,182 @@
 class ChatWidget extends HTMLElement {
-  private shadow: ShadowRoot;
-  private messagesContainer!: HTMLDivElement;
-  private inputField!: HTMLInputElement;
-  private agentId: string = "";
+  private container!: HTMLDivElement;
+  private isOpen = false;
 
   constructor() {
     super();
-    this.shadow = this.attachShadow({ mode: "open" });
+    this.attachShadow({ mode: "open" });
   }
 
   connectedCallback() {
-    this.agentId = this.getAttribute("agent-id") || "default-agent";
     this.render();
-    this.setupEventListeners();
   }
 
-  private render() {
-    this.shadow.innerHTML = `
+  toggleChat = () => {
+    this.isOpen = !this.isOpen;
+    this.render();
+  };
+
+  render() {
+    if (!this.shadowRoot) return;
+
+    this.shadowRoot.innerHTML = `
       <style>
-        .chat-widget {
-          width: 300px;
-          height: 400px;
-          display: flex;
-          flex-direction: column;
-          border: 1px solid #ccc;
-          border-radius: 8px;
-          overflow: hidden;
-          font-family: sans-serif;
-          background: #fff;
+        :host {
           position: fixed;
           bottom: 20px;
           right: 20px;
-          box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+          font-family: sans-serif;
+          z-index: 9999;
         }
-        .messages {
+        .chat-button {
+          background-color: #4F46E5;
+          color: white;
+          padding: 12px 20px;
+          border-radius: 30px;
+          border: none;
+          cursor: pointer;
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+          font-size: 16px;
+        }
+        .chat-window {
+          width: 320px;
+          height: 400px;
+          background: white;
+          border-radius: 12px;
+          box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+          display: flex;
+          flex-direction: column;
+          overflow: hidden;
+          animation: slideUp 0.3s ease-out;
+        }
+        @keyframes slideUp {
+          from {
+            transform: translateY(20px);
+            opacity: 0;
+          }
+          to {
+            transform: translateY(0);
+            opacity: 1;
+          }
+        }
+        .chat-header {
+          background-color: #4F46E5;
+          color: white;
+          padding: 12px;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+        }
+        .chat-messages {
           flex: 1;
           padding: 10px;
           overflow-y: auto;
           font-size: 14px;
         }
-        .input-area {
+        .chat-input {
           display: flex;
           border-top: 1px solid #eee;
-        }
-        .input-area input {
-          flex: 1;
-          border: none;
           padding: 10px;
-          font-size: 14px;
+        }
+        .chat-input input {
+          flex: 1;
+          padding: 8px;
+          border: 1px solid #ccc;
+          border-radius: 6px;
           outline: none;
         }
-        .input-area button {
-          background-color: #007bff;
+        .chat-input button {
+          background-color: #4F46E5;
           color: white;
           border: none;
-          padding: 0 15px;
+          padding: 8px 12px;
+          margin-left: 8px;
+          border-radius: 6px;
           cursor: pointer;
         }
+        .message {
+          margin-bottom: 8px;
+        }
+        .message.bot {
+          color: #555;
+        }
+        .message.user {
+          text-align: right;
+          color: #000;
+        }
       </style>
-      <div class="chat-widget">
-        <div id="messages" class="messages"></div>
-        <div class="input-area">
-          <input type="text" id="userInput" placeholder="Type a message..."/>
-          <button id="sendButton">Send</button>
-        </div>
-      </div>
+
+      ${
+        this.isOpen
+          ? `
+          <div class="chat-window">
+            <div class="chat-header">
+              Chat
+              <button style="background:none;border:none;color:white;font-size:20px;cursor:pointer;" id="close-btn">&times;</button>
+            </div>
+            <div class="chat-messages" id="messages">
+              <div class="message bot">👋 Hello! How can we help?</div>
+            </div>
+            <div class="chat-input">
+              <input type="text" placeholder="Type your message..." id="chat-input">
+              <button id="send-btn">Send</button>
+            </div>
+          </div>
+        `
+          : `
+          <button class="chat-button" id="open-btn">Start Chat</button>
+        `
+      }
     `;
-    this.messagesContainer = this.shadow.getElementById(
-      "messages"
-    ) as HTMLDivElement;
-    this.inputField = this.shadow.getElementById(
-      "userInput"
+
+    // Attach event listeners
+    setTimeout(() => {
+      const openBtn = this.shadowRoot?.getElementById("open-btn");
+      const closeBtn = this.shadowRoot?.getElementById("close-btn");
+      const sendBtn = this.shadowRoot?.getElementById("send-btn");
+      const inputBox = this.shadowRoot?.getElementById(
+        "chat-input"
+      ) as HTMLInputElement;
+
+      if (openBtn) openBtn.addEventListener("click", this.toggleChat);
+      if (closeBtn) closeBtn.addEventListener("click", this.toggleChat);
+      if (sendBtn) sendBtn.addEventListener("click", this.sendMessage);
+      if (inputBox)
+        inputBox.addEventListener("keypress", (e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            this.sendMessage();
+          }
+        });
+    }, 0);
+  }
+
+  sendMessage = () => {
+    const input = this.shadowRoot?.getElementById(
+      "chat-input"
     ) as HTMLInputElement;
-  }
+    const messages = this.shadowRoot?.getElementById("messages");
 
-  private setupEventListeners() {
-    const sendButton = this.shadow.getElementById(
-      "sendButton"
-    ) as HTMLButtonElement;
-    sendButton.addEventListener("click", () => this.handleSendMessage());
-    this.inputField.addEventListener("keypress", (event: KeyboardEvent) => {
-      if (event.key === "Enter") this.handleSendMessage();
-    });
-  }
+    if (input && messages && input.value.trim()) {
+      const userMsg = document.createElement("div");
+      userMsg.className = "message user";
+      userMsg.textContent = `🙋 ${input.value}`;
+      messages.appendChild(userMsg);
 
-  private async handleSendMessage() {
-    const text = this.inputField.value.trim();
-    if (!text) return;
+      const userText = input.value; // Save user's text if needed
+      input.value = "";
+      messages.scrollTop = messages.scrollHeight;
 
-    this.addMessage("You", text);
-    this.inputField.value = "";
-
-    // Fake backend response
-    const response = await this.fakeBackendResponse(text);
-    this.addMessage("Bot", response);
-  }
-
-  private addMessage(sender: string, text: string) {
-    const message = document.createElement("div");
-    message.innerHTML = `<strong>${sender}:</strong> ${text}`;
-    this.messagesContainer.appendChild(message);
-    this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
-  }
-
-  private async fakeBackendResponse(text: string): Promise<string> {
-    await new Promise((res) => setTimeout(res, 500)); // Simulate delay
-    return `Echo: ${text}`;
-  }
+      // Fake bot reply after short delay
+      setTimeout(() => {
+        const botMsg = document.createElement("div");
+        botMsg.className = "message bot";
+        botMsg.textContent = `🤖 Thanks for your message: "${userText}"`;
+        messages.appendChild(botMsg);
+        messages.scrollTop = messages.scrollHeight;
+      }, 800); // 800ms delay
+    }
+  };
 }
 
 customElements.define("chat-widget", ChatWidget);
